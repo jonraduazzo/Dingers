@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Fenway Park JF Regular.ttf</string>
+		<string>GearedSlab-Bold.ttf</string>
+		<string>GearedSlab-Light.ttf</string>
+		<string>GearedSlab.ttf</string>
+	</array>
+</dict>
+</plist>
