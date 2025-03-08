@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		750ECD512D70E9C600071A73 /* yolo11s-seg.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 750ECD502D70E9C600071A73 /* yolo11s-seg.mlpackage */; };
 		75C2FD5E2D72A1A500492B45 /* Crowd Noise.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 75C2FD5D2D72A1A500492B45 /* Crowd Noise.mp3 */; };
 		75C2FD642D72BC3300492B45 /* HOME RUN CELEBRATION.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 75C2FD632D72BC3300492B45 /* HOME RUN CELEBRATION.mp3 */; };
 		75C2FD662D741B0C00492B45 /* CLOUD.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 75C2FD652D741B0C00492B45 /* CLOUD.mp4 */; };
 		75C2FD6C2D7BA98600492B45 /* Gif Extension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C2FD6B2D7BA98600492B45 /* Gif Extension.swift */; };
 		75C2FD6F2D7BAFE700492B45 /* FLAnimatedImage in Frameworks */ = {isa = PBXBuildFile; productRef = 75C2FD6E2D7BAFE700492B45 /* FLAnimatedImage */; };
 		75C2FD712D7CB54400492B45 /* HomeRunCelebration.gif in Resources */ = {isa = PBXBuildFile; fileRef = 75C2FD702D7CB54400492B45 /* HomeRunCelebration.gif */; };
+		75F1375F2D7CC9CA00A13752 /* yolo11s.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 75F1375E2D7CC9CA00A13752 /* yolo11s.mlpackage */; };
 		75F308542D728A540001F370 /* GearedSlab-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 75F308502D728A540001F370 /* GearedSlab-Light.ttf */; };
 		75F308552D728A540001F370 /* GearedSlab-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 75F308512D728A540001F370 /* GearedSlab-Bold.ttf */; };
 		75F308562D728A540001F370 /* GearedSlab.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 75F308522D728A540001F370 /* GearedSlab.ttf */; };
@@ -48,12 +48,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		750ECD502D70E9C600071A73 /* yolo11s-seg.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = "yolo11s-seg.mlpackage"; sourceTree = "<group>"; };
 		75C2FD5D2D72A1A500492B45 /* Crowd Noise.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Crowd Noise.mp3"; sourceTree = "<group>"; };
 		75C2FD632D72BC3300492B45 /* HOME RUN CELEBRATION.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "HOME RUN CELEBRATION.mp3"; sourceTree = "<group>"; };
 		75C2FD652D741B0C00492B45 /* CLOUD.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = CLOUD.mp4; sourceTree = "<group>"; };
 		75C2FD6B2D7BA98600492B45 /* Gif Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Gif Extension.swift"; sourceTree = "<group>"; };
 		75C2FD702D7CB54400492B45 /* HomeRunCelebration.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; name = HomeRunCelebration.gif; path = "Dingers Prototype/HomeRunCelebration.dataset 17-25-23-390.dataset/HomeRunCelebration.gif"; sourceTree = "<group>"; };
+		75F1375E2D7CC9CA00A13752 /* yolo11s.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = yolo11s.mlpackage; sourceTree = "<group>"; };
 		75F3084F2D7286AE0001F370 /* Dingers-Prototype-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Dingers-Prototype-Info.plist"; sourceTree = SOURCE_ROOT; };
 		75F308502D728A540001F370 /* GearedSlab-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "GearedSlab-Light.ttf"; sourceTree = "<group>"; };
 		75F308512D728A540001F370 /* GearedSlab-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "GearedSlab-Bold.ttf"; sourceTree = "<group>"; };
@@ -151,7 +151,7 @@
 				75F3085B2D729A6A0001F370 /* Music */,
 				75F3084F2D7286AE0001F370 /* Dingers-Prototype-Info.plist */,
 				F96508842D126BFF003650F1 /* yolov8s.mlpackage */,
-				750ECD502D70E9C600071A73 /* yolo11s-seg.mlpackage */,
+				75F1375E2D7CC9CA00A13752 /* yolo11s.mlpackage */,
 				F9014B202D0FC57A0082F4D4 /* Dingers.swift */,
 				F9014B222D0FC57A0082F4D4 /* ContentView.swift */,
 				75C2FD6B2D7BA98600492B45 /* Gif Extension.swift */,
@@ -332,10 +332,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				750ECD512D70E9C600071A73 /* yolo11s-seg.mlpackage in Sources */,
 				75C2FD6C2D7BA98600492B45 /* Gif Extension.swift in Sources */,
 				F96508852D126BFF003650F1 /* yolov8s.mlpackage in Sources */,
 				F9014B232D0FC57A0082F4D4 /* ContentView.swift in Sources */,
+				75F1375F2D7CC9CA00A13752 /* yolo11s.mlpackage in Sources */,
 				F9014B212D0FC57A0082F4D4 /* Dingers.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

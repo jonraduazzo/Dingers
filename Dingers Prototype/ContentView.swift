@@ -735,7 +735,7 @@ class ModelHandler {
     init() {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                let coreMLModel = try yolov8s(configuration: MLModelConfiguration()).model
+                let coreMLModel = try yolo11s(configuration: MLModelConfiguration()).model
                 let visionModel = try VNCoreMLModel(for: coreMLModel)
                 
                 DispatchQueue.main.async {
