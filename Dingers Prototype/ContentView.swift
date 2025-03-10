@@ -23,27 +23,39 @@ class AudioManager {
     private init() {}
 
     func playBackgroundMusic() {
-        // ✅ Load and play **Menu Music**
+        print("🎵 Starting background music loading...")
+        
+        // Load music & crowd noise **asynchronously** without delaying UI
+        DispatchQueue.global(qos: .background).async {
+            self.loadMusic()
+            self.loadCrowdNoise()
+        }
+    }
+
+    private func loadMusic() {
         if let musicURL = Bundle.main.url(forResource: "Menu Music", withExtension: "mp3") {
             do {
                 musicPlayer = try AVAudioPlayer(contentsOf: musicURL)
                 musicPlayer?.volume = 0.2
-                musicPlayer?.numberOfLoops = -1  // ✅ Loop indefinitely
-                musicPlayer?.play()
+                musicPlayer?.numberOfLoops = -1
+                musicPlayer?.play()  // ✅ Start playing **immediately**
+                print("🎶 Menu Music started playing.")
             } catch {
                 print("🚨 Error playing menu music: \(error.localizedDescription)")
             }
         } else {
             print("🚨 Menu Music file not found!")
         }
+    }
 
-        // ✅ Load and play **Crowd Noise** separately
+    private func loadCrowdNoise() {
         if let crowdURL = Bundle.main.url(forResource: "Crowd Noise", withExtension: "mp3") {
             do {
                 crowdPlayer = try AVAudioPlayer(contentsOf: crowdURL)
-                crowdPlayer?.numberOfLoops = -1  // ✅ Loop indefinitely
-                crowdPlayer?.volume = 0.2  // ✅ Lower volume for background effect
-                crowdPlayer?.play()
+                crowdPlayer?.volume = 0.2
+                crowdPlayer?.numberOfLoops = -1
+                crowdPlayer?.play()  // ✅ Start playing **immediately**
+                print("📢 Crowd Noise started playing.")
             } catch {
                 print("🚨 Error playing crowd noise: \(error.localizedDescription)")
             }
@@ -69,35 +81,28 @@ class AudioManager {
             print("🚨 Button click sound file not found!")
             return
         }
-
         do {
             buttonPlayer = try AVAudioPlayer(contentsOf: url)
-            buttonPlayer?.volume = 0.1  // ✅ Adjust volume if needed
+            buttonPlayer?.volume = 0.1
             buttonPlayer?.play()
         } catch {
             print("🚨 Error playing button sound: \(error.localizedDescription)")
         }
     }
-   
+
     func playHomeRun() {
         guard let url = Bundle.main.url(forResource: "HOME RUN CELEBRATION", withExtension: "mp3") else {
             print("🚨 Home Run sound file not found!")
             return
         }
-        
         do {
             buttonPlayer = try AVAudioPlayer(contentsOf: url)
-            buttonPlayer?.volume = 0.5  // ✅ Adjust volume if needed
+            buttonPlayer?.volume = 0.5
             buttonPlayer?.play()
         } catch {
             print("🚨 Error playing Home Run sound: \(error.localizedDescription)")
         }
     }
-}
-
-#Preview {
-    ContentView()
-        .previewInterfaceOrientation(.landscapeLeft)  // ✅ Ensure it shows correctly
 }
 
 struct VideoBackgroundView: UIViewControllerRepresentable {
@@ -106,13 +111,14 @@ struct VideoBackgroundView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.showsPlaybackControls = false
-        controller.videoGravity = .resizeAspectFill // ✅ Ensures full-screen video coverage
-        
+        controller.videoGravity = .resizeAspect
+
         if let path = Bundle.main.path(forResource: videoName, ofType: "mp4") {
             let url = URL(fileURLWithPath: path)
             let player = AVPlayer(url: url)
             player.isMuted = true
-            player.rate = 6.0  // ✅ Play at 2x speed
+            player.rate = 1.0  // ✅ Ensure it’s not lagging due to high speed
+            print("🎥 Video \(videoName) loaded successfully")
 
             NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
@@ -125,8 +131,10 @@ struct VideoBackgroundView: UIViewControllerRepresentable {
 
             player.play()
             controller.player = player
+        } else {
+            print("🚨 Video file \(videoName) not found!")
         }
-        
+
         return controller
     }
 
@@ -134,6 +142,8 @@ struct VideoBackgroundView: UIViewControllerRepresentable {
 }
 
 struct ContentView: View {
+    @State private var isVideoLoaded = false  // ✅ Control video loading
+        private let launchTime = Date()  // ✅ Store when ContentView is first created
     @State private var isShowingVideoPicker = false
     @State private var isShowingDifficultySelection = false
     @State private var videoURL: URL?
@@ -143,23 +153,24 @@ struct ContentView: View {
     @State private var isShowingModeSelection = false
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // 📸 **Background Image**
-                VideoBackgroundView(videoName: "CLOUD") // Replace with actual video name
-                               .edgesIgnoringSafeArea(.all) // ✅ Ensures the video fully covers the screen
-          .zIndex(0) // 🎥 Ensure it's behind everything
-                
-                
-                Image("Welcome Screen")
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea()
+            GeometryReader { geometry in
+                ZStack {
+                    if !isVideoLoaded {
+                        Image("Welcome Screen")
+                            .resizable()
+                            .scaledToFill()
+                            .ignoresSafeArea()
+                            .transition(.opacity)  // Smooth transition
+                    } else {
+                        VideoBackgroundView(videoName: "Cloud")
+                            .edgesIgnoringSafeArea(.all)
+                            .zIndex(0) // ✅ Ensure it's behind everything
+                    }
 
-                VStack {
-                    Spacer()
-                }
-                
+                    VStack {
+                        Spacer()
+                    }
+
                 // 🎯 **Buttons**
                 customButton(title: "DIFFICULTY", color: Color("DarkBlue"), fontSize: 30, width: 170, height: 50) {
                     isShowingDifficultySelection = true
@@ -267,6 +278,7 @@ import Vision
 class TrackingViewController: UIViewController {
     var boundingBoxLayers: [CALayer] = []
     var parabolaLayer: CAShapeLayer!
+    var isRighty = true
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -275,11 +287,18 @@ class TrackingViewController: UIViewController {
     }
 
     private func setupOverlay() {
-        let overlayImageView = UIImageView(frame: view.bounds)
-        overlayImageView.image = UIImage(named: "Righty Setup")  // ✅ Use the same setup image
-        overlayImageView.contentMode = .scaleAspectFit
-        overlayImageView.isUserInteractionEnabled = false
+        let overlayImageView = UIImageView()
+        overlayImageView.image = UIImage(named: isRighty ? "Righty Setup" : "Lefty Setup")
+        overlayImageView.contentMode = .scaleAspectFit  // ✅ Prevents distortion
+        overlayImageView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(overlayImageView)
+
+        NSLayoutConstraint.activate([
+            overlayImageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            overlayImageView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            overlayImageView.widthAnchor.constraint(equalTo: view.widthAnchor),  // ✅ Ensures it scales with screen width
+            overlayImageView.heightAnchor.constraint(equalTo: view.widthAnchor, multiplier: 9.0/16.0)  // ✅ Keep **16:9 ratio**
+        ])
     }
 
     private func setupParabolaLayer() {
@@ -340,27 +359,174 @@ class TrackingViewController: UIViewController {
         parabolaLayer.lineWidth = 5
     }
 }
+
+class TrackingManager {
+    static let shared = TrackingManager() // ✅ Shared instance for both modes
+
+    var storedPitchData: [(speed: CGFloat, angle: CGFloat, distance: CGFloat)] = []
+    var homeRunCount = 0
+    private let homeRunDistance: CGFloat = 180 // 🏆 Adjust if needed
+
+    func logFinalResults(speedValues: [CGFloat], launchAngleValues: [CGFloat], distanceValues: [CGFloat]) {
+        guard !speedValues.isEmpty, !launchAngleValues.isEmpty, !distanceValues.isEmpty else {
+            print("🚨 No valid results to log.")
+            return
+        }
+
+        let avgSpeed = speedValues.reduce(0, +) / CGFloat(speedValues.count)
+        let avgLaunchAngle = launchAngleValues.reduce(0, +) / CGFloat(launchAngleValues.count)
+        let avgDistance = distanceValues.reduce(0, +) / CGFloat(distanceValues.count)
+
+        print("📊 FINAL RESULTS: Speed = \(avgSpeed) mph, Angle = \(avgLaunchAngle)°, Distance = \(avgDistance) ft")
+
+        storedPitchData.append((speed: avgSpeed, angle: avgLaunchAngle, distance: avgDistance))
+
+        if avgDistance > homeRunDistance {
+            homeRunCount += 1
+            AudioManager.shared.playHomeRun()
+        }
+    }
+
+    func presentSummaryScreen(from viewController: UIViewController) {
+        let totalHits = storedPitchData.count
+        let totalHomeRuns = homeRunCount
+        let longestDistance = storedPitchData.map { $0.distance }.max() ?? 0
+        let hardestExitVelocity = storedPitchData.map { $0.speed }.max() ?? 0
+        let avgDistance = storedPitchData.map { $0.distance }.reduce(0, +) / CGFloat(max(1, storedPitchData.count))
+        let avgExitVelocity = storedPitchData.map { $0.speed }.reduce(0, +) / CGFloat(max(1, storedPitchData.count))
+
+        let summaryView = SummaryView(
+            totalHits: totalHits,
+            totalHomeRuns: totalHomeRuns,
+            longestDistance: longestDistance,
+            hardestExitVelocity: hardestExitVelocity,
+            avgDistance: avgDistance,
+            avgExitVelocity: avgExitVelocity
+        )
+
+        let controller = UIHostingController(rootView: summaryView)
+        controller.modalPresentationStyle = .fullScreen
+        viewController.present(controller, animated: true)
+    }
+}
 class LiveTrackingViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
 
     private let captureSession = AVCaptureSession()
     private var previewLayer: AVCaptureVideoPreviewLayer!
     private let videoOutput = AVCaptureVideoDataOutput()
     private let modelHandler = ModelHandler()
-
     private var startButton: UIButton!
     private var exitButton: UIButton! // ✅ Declare exit button as a class property
     private var isTracking = false
+    private var isRighty = true // Default to Righty
     private var overlayView: UIView!  // 🔥 Full-screen overlay
+    private var stopButton: UIButton!
+    private var rightyButton: UIButton!
+    private var leftyButton: UIButton!
+    private var boundingBoxLayers: [CALayer] = []
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        setupCamera()
-        setupOverlay()  // ✅ Add overlay on top of video feed
-        setupUI()
+    @objc private func handleDeviceOrientationChange() {
+        guard let connection = previewLayer.connection else { return }
+
+        DispatchQueue.main.async {
+            if let videoOrientation = self.getVideoOrientation(from: UIDevice.current.orientation) {
+                connection.videoOrientation = videoOrientation
+            }
+        }
     }
 
+    // ✅ Helper Function: Map UIDeviceOrientation to AVCaptureVideoOrientation
+    private func getVideoOrientation(from deviceOrientation: UIDeviceOrientation) -> AVCaptureVideoOrientation? {
+        switch deviceOrientation {
+        case .portrait:
+            return .portrait
+        case .portraitUpsideDown:
+            return .portraitUpsideDown
+        case .landscapeLeft:
+            return .landscapeRight // ⚠️ iOS Camera flips this
+        case .landscapeRight:
+            return .landscapeLeft // ⚠️ iOS Camera flips this
+        default:
+            return nil
+        }
+    }
+
+    private func adjustPreviewLayer() {
+        guard let connection = previewLayer.connection else { return }
+
+        DispatchQueue.main.async {
+            switch UIDevice.current.orientation {
+            case .landscapeLeft:
+                connection.videoOrientation = .landscapeLeft
+            case .landscapeRight:
+                connection.videoOrientation = .landscapeRight
+            case .portraitUpsideDown, .portrait:
+                connection.videoOrientation = .portrait  // Ensure consistency for unsupported cases
+            default:
+                break
+            }
+            
+            self.previewLayer.frame = self.view.bounds
+        }
+    }
+
+    @objc private func selectRighty() {
+        isRighty = true
+        updateOverlayImage()
+        
+        // 🎯 Update button colors
+        rightyButton.backgroundColor = UIColor(named: "DarkBlue")?.withAlphaComponent(0.7)  // Selected color
+        leftyButton.backgroundColor = UIColor.systemGray.withAlphaComponent(0.7)  // Grayed out
+    }
+
+    @objc private func selectLefty() {
+        isRighty = false
+        updateOverlayImage()
+        
+        // 🎯 Update button colors
+        rightyButton.backgroundColor = UIColor.systemGray.withAlphaComponent(0.7)  // Grayed out
+        leftyButton.backgroundColor = UIColor(named: "DarkBlue")?.withAlphaComponent(0.7)  // Selected color
+    }
+
+    private func updateOverlayImage() {
+        if let imageView = view.subviews.first(where: { $0 is UIImageView }) as? UIImageView {
+            imageView.image = UIImage(named: isRighty ? "Righty Setup" : "Lefty Setup")
+        }
+    }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        setupCamera()
+        setupOverlay()
+        
+        // ✅ Initialize UI elements, ensuring `startButton` exists
+        setupUI()
+        
+        // ✅ Default to Righty when view appears
+        selectRighty()
+    
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDeviceOrientationChange),
+            name: UIDevice.orientationDidChangeNotification,
+            object: nil
+        )
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+
+        let screenWidth = view.bounds.width
+        let targetHeight = screenWidth * (9.0 / 16.0)  // Maintain 16:9 ratio
+
+        let yOffset = (view.bounds.height - targetHeight) / 2  // Center vertically
+
+        previewLayer.frame = CGRect(x: 0, y: yOffset, width: screenWidth, height: targetHeight)
+        previewLayer.videoGravity = .resizeAspect  // ✅ Ensures proper aspect ratio without stretching
+    }
+    
     private func setupCamera() {
-        captureSession.sessionPreset = .hd1920x1080  // ✅ Ensures 1080p video resolution
+        captureSession.sessionPreset = .hd4K3840x2160  // ✅ Uses full sensor resolution
 
         guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
               let input = try? AVCaptureDeviceInput(device: camera) else {
@@ -374,40 +540,56 @@ class LiveTrackingViewController: UIViewController, AVCaptureVideoDataOutputSamp
 
         videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "cameraFrameProcessingQueue"))
         videoOutput.alwaysDiscardsLateVideoFrames = true
-        captureSession.addOutput(videoOutput)
+        
+        if captureSession.canAddOutput(videoOutput) {
+            captureSession.addOutput(videoOutput)
+        }
 
         previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.videoGravity = .resizeAspectFill
-        previewLayer.frame = view.bounds
-        previewLayer.connection?.videoOrientation = .landscapeRight  // ✅ Ensures correct orientation
-        view.layer.addSublayer(previewLayer)
 
-        captureSession.startRunning()
+        if let videoOrientation = getVideoOrientation(from: UIDevice.current.orientation) {
+            previewLayer.connection?.videoOrientation = videoOrientation
+        } else {
+            previewLayer.connection?.videoOrientation = .landscapeRight  // Default to landscape
+        }
+
+        view.layer.insertSublayer(previewLayer, at: 0)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.captureSession.startRunning()
+        }
     }
-
+    
     private func setupOverlay() {
-        let overlayImageView = UIImageView(frame: view.bounds)
-        overlayImageView.image = UIImage(named: "Righty Setup")  // ✅ Use "Righty Setup" image
-        overlayImageView.contentMode = .scaleAspectFit;        
-        overlayImageView.isUserInteractionEnabled = false  // ✅ Ensures taps go through
+        let overlayImageView = UIImageView()
+        overlayImageView.image = UIImage(named: isRighty ? "Righty Setup" : "Lefty Setup")
+        overlayImageView.contentMode = .scaleAspectFit
+        overlayImageView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(overlayImageView)
+
+        NSLayoutConstraint.activate([
+            overlayImageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            overlayImageView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            overlayImageView.widthAnchor.constraint(equalTo: view.widthAnchor),
+            overlayImageView.heightAnchor.constraint(equalTo: view.widthAnchor, multiplier: 9.0/16.0)
+        ])
     }
 
     private func setupUI() {
-        // ✅ **Ready Button (Centered)**
+        // Start Button
         startButton = UIButton(type: .system)
+        guard let startButton = startButton else { return }  // ✅ Prevents accessing `nil`
         startButton.setTitle("READY", for: .normal)
         startButton.setTitleColor(.white, for: .normal)
         startButton.titleLabel?.font = UIFont(name: "Geared Slab", size: 20) ?? UIFont.systemFont(ofSize: 20, weight: .bold)
-        startButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.8)
+        startButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.7)
         startButton.layer.cornerRadius = 10
         startButton.addTarget(self, action: #selector(toggleTracking), for: .touchUpInside)
-        
         startButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(startButton)
 
-        // ✅ **Exit Button (Top-Left)**
-        exitButton = UIButton(type: .system) // ✅ Use the existing class property
+        // Exit Button
+        exitButton = UIButton(type: .system)
         exitButton.setTitle("EXIT", for: .normal)
         exitButton.setTitleColor(.white, for: .normal)
         exitButton.titleLabel?.font = UIFont(name: "Geared Slab", size: 18) ?? UIFont.systemFont(ofSize: 18, weight: .bold)
@@ -416,34 +598,90 @@ class LiveTrackingViewController: UIViewController, AVCaptureVideoDataOutputSamp
         exitButton.addTarget(self, action: #selector(exitToHome), for: .touchUpInside)
         exitButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(exitButton)
-        
 
-        // ✅ **Auto Layout Constraints**
+        // Righty Button
+        rightyButton = UIButton(type: .system)
+        rightyButton.setTitle("RIGHTY", for: .normal)
+        rightyButton.setTitleColor(UIColor(named: "Baseball"), for: .normal)
+        rightyButton.titleLabel?.font = UIFont(name: "Geared Slab", size: 18) ?? UIFont.systemFont(ofSize: 18, weight: .bold)
+        rightyButton.backgroundColor = UIColor(named: "DarkBlue")?.withAlphaComponent(0.7)
+        rightyButton.layer.cornerRadius = 10
+        rightyButton.addTarget(self, action: #selector(selectRighty), for: .touchUpInside)
+        rightyButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(rightyButton)
+
+        // Lefty Button
+        leftyButton = UIButton(type: .system)
+        leftyButton.setTitle("LEFTY", for: .normal)
+        leftyButton.setTitleColor(UIColor(named: "Baseball"), for: .normal)
+        leftyButton.titleLabel?.font = UIFont(name: "Geared Slab", size: 18) ?? UIFont.systemFont(ofSize: 18, weight: .bold)
+        leftyButton.backgroundColor = UIColor(named: "DarkBlue")?.withAlphaComponent(0.7)
+        leftyButton.layer.cornerRadius = 10
+        leftyButton.addTarget(self, action: #selector(selectLefty), for: .touchUpInside)
+        leftyButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(leftyButton)
+
+        // **Stop Button
+        stopButton = UIButton(type: .system)
+        stopButton.setTitle("STOP", for: .normal)
+        stopButton.setTitleColor(.white, for: .normal)
+        stopButton.titleLabel?.font = UIFont(name: "Geared Slab", size: 18) ?? UIFont.systemFont(ofSize: 18, weight: .bold)
+        stopButton.backgroundColor = UIColor.systemRed.withAlphaComponent(0.7)
+        stopButton.layer.cornerRadius = 10
+        stopButton.addTarget(self, action: #selector(stopTracking), for: .touchUpInside)
+        stopButton.translatesAutoresizingMaskIntoConstraints = false
+        stopButton.isHidden = true  // Start hidden
+        view.addSubview(stopButton)
+
+        // **Auto Layout Constraints**
         NSLayoutConstraint.activate([
-            // 🎯 **Center Ready Button Horizontally & Position Near Bottom**
+            // Start Button
             startButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            startButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: 10),
+            startButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
             startButton.widthAnchor.constraint(equalToConstant: 100),
             startButton.heightAnchor.constraint(equalToConstant: 50),
 
-            // 🎯 **Position Exit Button in Top-Left Corner**
+            // Exit Button
             exitButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             exitButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
             exitButton.widthAnchor.constraint(equalToConstant: 80),
-            exitButton.heightAnchor.constraint(equalToConstant: 40)
+            exitButton.heightAnchor.constraint(equalToConstant: 40),
+
+            // Righty Button
+            rightyButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20), // Move away from the edge
+                rightyButton.centerYAnchor.constraint(equalTo: view.centerYAnchor), // Centered on Y-axis
+                rightyButton.widthAnchor.constraint(equalToConstant: 100),
+                rightyButton.heightAnchor.constraint(equalToConstant: 40),
+
+            // Lefty Button
+            leftyButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20), // Move left to avoid notch
+                leftyButton.centerYAnchor.constraint(equalTo: view.centerYAnchor), // Centered on Y-axis
+                leftyButton.widthAnchor.constraint(equalToConstant: 100),
+                leftyButton.heightAnchor.constraint(equalToConstant: 40),
+            
+            // Stop Button (Hidden Initially)
+            stopButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            stopButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+            stopButton.widthAnchor.constraint(equalToConstant: 100),
+            stopButton.heightAnchor.constraint(equalToConstant: 50),
         ])
     }
 
+    private func removeSetupOverlay() {
+        for subview in view.subviews {
+            if let imageView = subview as? UIImageView,
+               (imageView.image == UIImage(named: "Righty Setup") || imageView.image == UIImage(named: "Lefty Setup")) {
+                imageView.removeFromSuperview()
+            }
+        }
+    }
+    
     @objc private func startTracking() {
         isTracking = true
         startButton.isHidden = true  // ✅ Hide "READY" button after tracking starts
 
         // ✅ Remove setup overlay image
-        for subview in view.subviews {
-            if let imageView = subview as? UIImageView, imageView.image == UIImage(named: "Righty Setup") {
-                imageView.removeFromSuperview()
-            }
-        }
+        removeSetupOverlay()
     }
         // ✅ **Exit Button Function**
         @objc private func exitToHome() {
@@ -451,27 +689,42 @@ class LiveTrackingViewController: UIViewController, AVCaptureVideoDataOutputSamp
             dismiss(animated: true, completion: nil)
         }
 
+    @objc private func stopTracking() {
+        isTracking = false
+        stopButton.isHidden = true
+        startButton.isHidden = true
+        exitButton.isHidden = true
+        rightyButton.isHidden = true
+        leftyButton.isHidden = true
+
+        captureSession.stopRunning()
+
+        TrackingManager.shared.presentSummaryScreen(from: self)
+    }
+    
     @objc private func toggleTracking() {
+        guard let startButton = startButton else { return }  // ✅ Prevent crash
         isTracking.toggle()
 
         if isTracking {
+            // Hide setup UI elements
+            startButton.isHidden = true
+            exitButton.isHidden = true
+            rightyButton.isHidden = true
+            leftyButton.isHidden = true
+
+            // Show Stop Button
+            stopButton.isHidden = false
+
             startButton.setTitle("STOP", for: .normal)
             startButton.backgroundColor = UIColor.systemRed.withAlphaComponent(0.8)
-            
-            // ✅ Hide overlay image when tracking starts
-            for subview in view.subviews {
-                if let imageView = subview as? UIImageView, imageView.image == UIImage(named: "Righty Setup") {
-                    imageView.removeFromSuperview()
-                }
-            }
+            // ✅ Remove setup overlay image
+            removeSetupOverlay()
 
             // ✅ Use BallTracker for tracking (same logic as Video Mode)
-            captureSession.startRunning()
-        } else {
-            startButton.setTitle("READY", for: .normal)
-            startButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.8)
-
-            captureSession.stopRunning()
+            DispatchQueue.global(qos: .userInitiated).async {
+                self.captureSession.startRunning()
+            }
         }
     }
 
@@ -490,8 +743,6 @@ class LiveTrackingViewController: UIViewController, AVCaptureVideoDataOutputSamp
             }
         }
     }
-
-    private var boundingBoxLayers: [CALayer] = []
 
     private func updateBoundingBoxes(trackedPoints: [(CGPoint, Int)]) {
         boundingBoxLayers.forEach { $0.removeFromSuperlayer() }
@@ -737,9 +988,9 @@ class ModelHandler {
             do {
                 let coreMLModel = try yolo11s(configuration: MLModelConfiguration()).model
                 let visionModel = try VNCoreMLModel(for: coreMLModel)
-                
+
                 DispatchQueue.main.async {
-                    self.model = visionModel  // ✅ Now allowed since `model` is a `var`
+                    self.model = visionModel  // ✅ Set the model on main thread
                     print("✅ Model Loaded Successfully!")
                 }
             } catch {
@@ -763,21 +1014,24 @@ class ModelHandler {
             }
         }
 
-        guard let firstCandidate = rightwardCandidates.first else { return nil }
+        guard let firstCandidate = rightwardCandidates.first else {
+            print("❌ No valid rightward movement detected yet.")
+            return nil
+        }
 
-        // ✅ Apply stability check (ensure it's not a false positive)
+        // ✅ Ensure that the movement is **stable** (no random small movements)
         let candidateIndex = trackedPoints.firstIndex(where: { $0.0 == firstCandidate.0 }) ?? 0
         let laterPoints = trackedPoints.suffix(from: candidateIndex + 1)
         let furtherLeftCount = laterPoints.filter { $0.0.x < firstCandidate.0.x }.count
 
-        if furtherLeftCount < 1 {  // ✅ Ensure transition is stable
+        if furtherLeftCount < 1 {
+            print("✅ First Speed Calculation Point Detected at Frame \(firstCandidate.1) | Position: \(firstCandidate.0)")
             return firstCandidate
         }
 
+        print("⚠️ Discarded false positive movement detection.")
         return nil
     }
-    
-    
 
     func detectSportsBall(in pixelBuffer: CVPixelBuffer, frameCounter: Int, completion: @escaping ([(CGPoint, Int)], [(CGPoint, Int)]) -> Void) {
         guard let model = self.model else {
@@ -1515,8 +1769,8 @@ class OverlayVideoPlayerController: UIViewController {
 
         // 🏁 Extract first **3 points** used for speed calculation
            let allSpeedCalcPoints = hitPoints.drop { $0.1 < firstSpeedCalc.1 }
-           let speedCalculationPoints = allSpeedCalcPoints.prefix(3) // First 3 points only
-
+        let speedCalculationPoints = allSpeedCalcPoints.prefix(3).filter { $0.0.x > firstSpeedCalc.0.x }
+        
            // 🔴 Draw **First Speed Calc & Two Additional Points** in Red
            for (point, _) in speedCalculationPoints {
                let redLayer = CALayer()
@@ -1531,24 +1785,6 @@ class OverlayVideoPlayerController: UIViewController {
                view.layer.addSublayer(redLayer)
                boundingBoxLayers.append(redLayer)
            }
-       
-        /*
-        // ✅ **Draw blue dots (pitch tracking) in real-time**
-        for (point, _) in pitchPoints {
-            let pitchLayer = CALayer()
-            pitchLayer.frame = CGRect(
-                x: point.x * videoFrame.width - 5,
-                y: (1 - point.y) * videoFrame.height - 5,
-                width: 7,
-                height: 7
-            )
-            pitchLayer.backgroundColor = UIColor.systemBlue.cgColor
-            pitchLayer.cornerRadius = 5
-            view.layer.addSublayer(pitchLayer)
-            boundingBoxLayers.append(pitchLayer)
-        
-        } */
-         
             
         // 🟡 Draw **hit tracking** points in yellow
         for (point, _) in hitPoints {
