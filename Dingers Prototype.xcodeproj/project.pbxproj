@@ -146,7 +146,6 @@
 		F9014B1F2D0FC57A0082F4D4 /* Dingers Prototype */ = {
 			isa = PBXGroup;
 			children = (
-				75C2FD652D741B0C00492B45 /* CLOUD.mp4 */,
 				75F308582D728A5C0001F370 /* Fonts */,
 				75F3085B2D729A6A0001F370 /* Music */,
 				75F3084F2D7286AE0001F370 /* Dingers-Prototype-Info.plist */,
@@ -155,6 +154,7 @@
 				F9014B202D0FC57A0082F4D4 /* Dingers.swift */,
 				F9014B222D0FC57A0082F4D4 /* ContentView.swift */,
 				75C2FD6B2D7BA98600492B45 /* Gif Extension.swift */,
+				75C2FD652D741B0C00492B45 /* CLOUD.mp4 */,
 				F9014B242D0FC57B0082F4D4 /* Assets.xcassets */,
 				F9014B262D0FC57B0082F4D4 /* Preview Content */,
 			);

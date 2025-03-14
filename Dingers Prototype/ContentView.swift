@@ -111,7 +111,7 @@ struct VideoBackgroundView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.showsPlaybackControls = false
-        controller.videoGravity = .resizeAspect
+        controller.videoGravity = .resizeAspectFill
 
         if let path = Bundle.main.path(forResource: videoName, ofType: "mp4") {
             let url = URL(fileURLWithPath: path)
@@ -152,6 +152,7 @@ struct ContentView: View {
     @State private var isShowingLiveTracking = false
     @State private var isShowingModeSelection = false
     
+    
     var body: some View {
             GeometryReader { geometry in
                 ZStack {
@@ -161,12 +162,12 @@ struct ContentView: View {
                             .scaledToFill()
                             .ignoresSafeArea()
                             .transition(.opacity)  // Smooth transition
-                    } else {
-                        VideoBackgroundView(videoName: "Cloud")
-                            .edgesIgnoringSafeArea(.all)
-                            .zIndex(0) // ✅ Ensure it's behind everything
+                            .zIndex(0)
                     }
-
+                        VideoBackgroundView(videoName: "CLOUD")
+                        .edgesIgnoringSafeArea(.all)  // ✅ Ignores Safe Areas
+                        .zIndex(-1) // ✅ Ensure it's behind everything
+            
                     VStack {
                         Spacer()
                     }
@@ -354,7 +355,7 @@ class TrackingViewController: UIViewController {
         }
 
         parabolaLayer.path = path.cgPath
-        parabolaLayer.strokeColor = UIColor.systemYellow.cgColor
+        parabolaLayer.strokeColor = UIColor.systemGray.cgColor
         parabolaLayer.fillColor = UIColor.clear.cgColor
         parabolaLayer.lineWidth = 5
     }
@@ -978,6 +979,7 @@ class ModelHandler {
     var smashPoint: CGPoint? = nil
     var trackedPoints: [(CGPoint, Int)] = []
     var allTrackedPoints: [(CGPoint, Int)] = []  // ✅ New: Stores **all** detected points
+    var isRighty = true  // ✅ Add lefty mode toggle
 
     func getSmashPoint() -> (CGPoint, Int)? {
         return trackedPoints.first
@@ -1002,19 +1004,20 @@ class ModelHandler {
     func getFirstSpeedCalcPoint() -> (CGPoint, Int)? {
         guard trackedPoints.count > 1 else { return nil }
 
-        var rightwardCandidates: [(CGPoint, Int)] = []
+        var movementCandidates: [(CGPoint, Int)] = []
 
         for i in 1..<trackedPoints.count {
             let prev = trackedPoints[i - 1].0
             let current = trackedPoints[i].0
             let deltaX = current.x - prev.x
-
-            if deltaX > 0 {  // ✅ Candidate for first movement rightward
-                rightwardCandidates.append(trackedPoints[i])
+            let isMovingRight = deltaX > 0
+            let isMovingLeft = deltaX < 0
+            if (isRighty && isMovingRight) || (!isRighty && isMovingLeft) {
+                    movementCandidates.append(trackedPoints[i])
             }
         }
 
-        guard let firstCandidate = rightwardCandidates.first else {
+        guard let firstCandidate = movementCandidates.first else {
             print("❌ No valid rightward movement detected yet.")
             return nil
         }
@@ -1022,9 +1025,9 @@ class ModelHandler {
         // ✅ Ensure that the movement is **stable** (no random small movements)
         let candidateIndex = trackedPoints.firstIndex(where: { $0.0 == firstCandidate.0 }) ?? 0
         let laterPoints = trackedPoints.suffix(from: candidateIndex + 1)
-        let furtherLeftCount = laterPoints.filter { $0.0.x < firstCandidate.0.x }.count
+        let furtherCount = laterPoints.filter { $0.0.x < firstCandidate.0.x }.count
 
-        if furtherLeftCount < 1 {
+        if furtherCount < 1 {
             print("✅ First Speed Calculation Point Detected at Frame \(firstCandidate.1) | Position: \(firstCandidate.0)")
             return firstCandidate
         }
@@ -1100,6 +1103,7 @@ class ModelHandler {
                            return  // 🚨 Skip duplicate frames (same location as last)
                        }
                     print("🟢 Frame \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")
+                    
                     self.trackedPoints.append((currentPosition, frameCounter))
                 }
 
@@ -1552,7 +1556,7 @@ class OverlayVideoPlayerController: UIViewController {
         func makeUIView(context: Context) -> UIImageView {
             let imageView = UIImageView()
 
-            if let gifURL = Bundle.main.url(forResource: "HomeRunCelebration", withExtension: "gif"),
+            if let gifURL = Bundle.main.url(forResource: "Animation", withExtension: "gif"),
                let gifData = try? Data(contentsOf: gifURL),
                let gifImage = UIImage.gif(data: gifData) {
                 imageView.image = gifImage
@@ -1771,6 +1775,7 @@ class OverlayVideoPlayerController: UIViewController {
            let allSpeedCalcPoints = hitPoints.drop { $0.1 < firstSpeedCalc.1 }
         let speedCalculationPoints = allSpeedCalcPoints.prefix(3).filter { $0.0.x > firstSpeedCalc.0.x }
         
+        /*
            // 🔴 Draw **First Speed Calc & Two Additional Points** in Red
            for (point, _) in speedCalculationPoints {
                let redLayer = CALayer()
@@ -1784,26 +1789,30 @@ class OverlayVideoPlayerController: UIViewController {
                redLayer.cornerRadius = 5
                view.layer.addSublayer(redLayer)
                boundingBoxLayers.append(redLayer)
+         
+         */
            }
-            
+        
         // 🟡 Draw **hit tracking** points in yellow
+        /*
         for (point, _) in hitPoints {
             let hitLayer = CALayer()
             hitLayer.frame = CGRect(
-                x: point.x * videoFrame.width - 5,
-                y: (1 - point.y) * videoFrame.height - 5,
+                x: point.x * videoFrame.width - 5,  // ✅ Add offset
+                y: (1 - point.y) * videoFrame.height - 5,  // ✅ Add offset
                 width: 7,
                 height: 7
             )
-            hitLayer.backgroundColor = UIColor.systemYellow.cgColor
+            hitLayer.backgroundColor = UIColor(named: "Baseball")?.withAlphaComponent(0.7)
             hitLayer.cornerRadius = 5
             view.layer.addSublayer(hitLayer)
             boundingBoxLayers.append(hitLayer)
         }
-          
+        */
     }
-}
 
+
+        
 func fitParabola(to points: [CGPoint]) -> (a: CGFloat, b: CGFloat, c: CGFloat)? {
     guard points.count >= 3 else { return nil }
 
