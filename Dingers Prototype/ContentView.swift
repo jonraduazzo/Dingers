@@ -1,8 +1,3 @@
-
-//
-//  ContentView.swift
-//  Dingers Prototype
-//
 //  Created by Dingers Incorporated on 12/15/24.
 //
 import FLAnimatedImage
@@ -13,6 +8,22 @@ import AVFoundation  // For audio session configuration
 import Vision  // For YOLOv8 object detection
 import CoreML  // For integrating the YOLOv8 Core ML model
 import UIKit  // For landscape orientation control
+
+@main
+struct AtBatApp: App {
+    init() {
+        // 🧠 Load YOLO model in background when app launches
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = ModelHandler()
+        }
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
 
 class AudioManager {
     static let shared = AudioManager()
@@ -252,7 +263,6 @@ struct ContentView: View {
     }
 }
 
-
 struct LiveTrackingView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> LiveTrackingViewController {
         return LiveTrackingViewController()
@@ -274,7 +284,6 @@ struct LiveTrackingView: UIViewControllerRepresentable {
 import UIKit
 import AVFoundation
 import Vision
-
 
 class TrackingViewController: UIViewController {
     var boundingBoxLayers: [CALayer] = []
@@ -355,7 +364,7 @@ class TrackingViewController: UIViewController {
         }
 
         parabolaLayer.path = path.cgPath
-        parabolaLayer.strokeColor = UIColor.systemGray.cgColor
+        parabolaLayer.strokeColor = UIColor.systemYellow.cgColor
         parabolaLayer.fillColor = UIColor.clear.cgColor
         parabolaLayer.lineWidth = 5
     }
@@ -500,7 +509,7 @@ class LiveTrackingViewController: UIViewController, AVCaptureVideoDataOutputSamp
         setupCamera()
         setupOverlay()
         
-        // ✅ Initialize UI elements, ensuring `startButton` exists
+        // ✅ Initialize UI elements, ensuring startButton exists
         setupUI()
         
         // ✅ Default to Righty when view appears
@@ -579,7 +588,7 @@ class LiveTrackingViewController: UIViewController, AVCaptureVideoDataOutputSamp
     private func setupUI() {
         // Start Button
         startButton = UIButton(type: .system)
-        guard let startButton = startButton else { return }  // ✅ Prevents accessing `nil`
+        guard let startButton = startButton else { return }  // ✅ Prevents accessing nil
         startButton.setTitle("READY", for: .normal)
         startButton.setTitleColor(.white, for: .normal)
         startButton.titleLabel?.font = UIFont(name: "Geared Slab", size: 20) ?? UIFont.systemFont(ofSize: 20, weight: .bold)
@@ -731,18 +740,19 @@ class LiveTrackingViewController: UIViewController, AVCaptureVideoDataOutputSamp
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard isTracking else { return }
-
+        
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             print("🚨 Failed to get pixel buffer")
             return
         }
-
+        
         let frameCounter = Int(CACurrentMediaTime() * 1000)  // Milliseconds timestamp
         modelHandler.detectSportsBall(in: pixelBuffer, frameCounter: frameCounter) { allTrackedPoints, trackedPoints in
             DispatchQueue.main.async {
                 self.updateBoundingBoxes(trackedPoints: trackedPoints)
             }
         }
+        self.modelHandler.checkPitchTimeout(frameCounter: frameCounter)
     }
 
     private func updateBoundingBoxes(trackedPoints: [(CGPoint, Int)]) {
@@ -766,7 +776,6 @@ class LiveTrackingViewController: UIViewController, AVCaptureVideoDataOutputSamp
         }
     }
 }
-
 
 struct DifficultySelectionView: View {
     @AppStorage("homeRunDistance") private var homeRunDistance: Int = 180  // Default to Little League
@@ -978,8 +987,10 @@ class ModelHandler {
     var smashPointDetected = false
     var smashPoint: CGPoint? = nil
     var trackedPoints: [(CGPoint, Int)] = []
+    var isPitchInProgress: Bool = false
+    var pitchStartFrame: Int? = nil
+    let pitchTimeoutFrames: Int = 10
     var allTrackedPoints: [(CGPoint, Int)] = []  // ✅ New: Stores **all** detected points
-    var isRighty = true  // ✅ Add lefty mode toggle
 
     func getSmashPoint() -> (CGPoint, Int)? {
         return trackedPoints.first
@@ -1001,23 +1012,39 @@ class ModelHandler {
         }
     }
     
+    func checkPitchTimeout(frameCounter: Int) {
+        if self.isPitchInProgress, let startFrame = self.pitchStartFrame {
+            let elapsedFrames = frameCounter - startFrame
+            if !self.smashPointDetected && elapsedFrames > self.pitchTimeoutFrames {
+                print("❌ No Hit Detected After Pitch (Frames: \(elapsedFrames))")
+                self.isPitchInProgress = false
+                self.pitchStartFrame = nil
+                self.smashPointDetected = false
+                self.smashPoint = nil
+                self.trackedPoints.removeAll()
+                self.allTrackedPoints.removeAll()
+                self.previousPosition = nil
+                self.currentDirection = 0
+            }
+        }
+    }
+    
     func getFirstSpeedCalcPoint() -> (CGPoint, Int)? {
         guard trackedPoints.count > 1 else { return nil }
 
-        var movementCandidates: [(CGPoint, Int)] = []
+        var rightwardCandidates: [(CGPoint, Int)] = []
 
         for i in 1..<trackedPoints.count {
             let prev = trackedPoints[i - 1].0
             let current = trackedPoints[i].0
             let deltaX = current.x - prev.x
-            let isMovingRight = deltaX > 0
-            let isMovingLeft = deltaX < 0
-            if (isRighty && isMovingRight) || (!isRighty && isMovingLeft) {
-                    movementCandidates.append(trackedPoints[i])
+
+            if deltaX > 0.00001 {  // ✅ Candidate for first movement rightward
+                rightwardCandidates.append(trackedPoints[i])
             }
         }
 
-        guard let firstCandidate = movementCandidates.first else {
+        guard let firstCandidate = rightwardCandidates.first else {
             print("❌ No valid rightward movement detected yet.")
             return nil
         }
@@ -1025,14 +1052,14 @@ class ModelHandler {
         // ✅ Ensure that the movement is **stable** (no random small movements)
         let candidateIndex = trackedPoints.firstIndex(where: { $0.0 == firstCandidate.0 }) ?? 0
         let laterPoints = trackedPoints.suffix(from: candidateIndex + 1)
-        let furtherCount = laterPoints.filter { $0.0.x < firstCandidate.0.x }.count
+        let furtherLeftCount = laterPoints.filter { $0.0.x < firstCandidate.0.x }.count
 
-        if furtherCount < 1 {
-            print("✅ First Speed Calculation Point Detected at Frame \(firstCandidate.1) | Position: \(firstCandidate.0)")
+        if furtherLeftCount < 1 {
+       //     print("✅ First Speed Calculation Point Detected at Frame \(firstCandidate.1) | Position: \(firstCandidate.0)")
             return firstCandidate
         }
 
-        print("⚠️ Discarded false positive movement detection.")
+  //      print("⚠️ Discarded false positive movement detection.")
         return nil
     }
 
@@ -1050,9 +1077,6 @@ class ModelHandler {
                 $0.labels.first?.identifier == "sports ball" && $0.confidence > 0.25
             }
 
-            // ✅ Optional Debug: Uncomment to print **all** detected points before the smash point
-                /*
-                print("🟠 Pre-Smash Frame \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")*/
             
             let detectedBall = filteredResults.first
 
@@ -1066,11 +1090,25 @@ class ModelHandler {
 
                 self.allTrackedPoints.append((currentPosition, frameCounter))
 
+                // ✅ Optional Debug: Uncomment to print **all** detected points before the smash point
+                    
+                    print("🟠 Pre-Smash Frame \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")
                 
                 // ✅ Step 1: Identify the leftmost point before movement switches rightward
-                if let previous = self.previousPosition {
-                                let deltaX = currentPosition.x - previous.x
-                                let isMovingRight = deltaX > 0
+            if let previous = self.previousPosition {
+                let deltaX = currentPosition.x - previous.x
+                let isMovingRight = deltaX > 0
+                
+                // 🟠 Pitch detection logic
+                if deltaX < 0 {
+                    if !self.isPitchInProgress {
+                        self.isPitchInProgress = true
+                        self.pitchStartFrame = frameCounter
+                        print("⚾ Pitch Detected: Frame \(frameCounter)")
+                    }
+                }
+                
+                // Removed inline pitch timeout block. Use checkPitchTimeout instead.
 
                     if !self.smashPointDetected {
                         // 🔹 Find the leftmost candidate point before movement switches rightward
@@ -1103,7 +1141,6 @@ class ModelHandler {
                            return  // 🚨 Skip duplicate frames (same location as last)
                        }
                     print("🟢 Frame \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")
-                    
                     self.trackedPoints.append((currentPosition, frameCounter))
                 }
 
@@ -1114,7 +1151,7 @@ class ModelHandler {
             }
         }
 
-        request.imageCropAndScaleOption = .centerCrop
+        request.imageCropAndScaleOption = VNImageCropAndScaleOption.centerCrop
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
         do {
             try handler.perform([request])
@@ -1158,7 +1195,7 @@ class OverlayVideoPlayerController: UIViewController {
     
     private let modelHandler = ModelHandler()
     private let conversionFactor: CGFloat = 6.0  // Feet per pixel
-    private let frameRate: CGFloat = 240.0  // Frames per second
+    private let frameRate: CGFloat = 120.0  // Frames per second
     private let mphConversionFactor: CGFloat = 0.681818  // 1 ft/s = 0.681818 mph
     private var frameCounter = 0
     
@@ -1305,7 +1342,6 @@ class OverlayVideoPlayerController: UIViewController {
         lastValidLaunchAngle = 0.0
         launchAngleLogged = false
         finalResultsLogged = false
-
         speedValues.removeAll()
         launchAngleValues.removeAll()
         distanceValues.removeAll()
@@ -1453,15 +1489,16 @@ class OverlayVideoPlayerController: UIViewController {
                     }
                     
                     self.updateBoundingBoxes(pitchPoints: allTrackedPoints, hitPoints: trackedPoints)
-
+    
                     if self.shouldDetectNextPitch(trackedPoints) {
                         self.logTrackedPoints(trackedPoints)
                         self.updateParabola(with: trackedPoints)
                     }
-
+    
                     self.checkForTimeout()  // ✅ Check if a reset is needed
                 }
             }
+            self.modelHandler.checkPitchTimeout(frameCounter: self.frameCounter)
         }
         player.play()
     }
@@ -1556,7 +1593,7 @@ class OverlayVideoPlayerController: UIViewController {
         func makeUIView(context: Context) -> UIImageView {
             let imageView = UIImageView()
 
-            if let gifURL = Bundle.main.url(forResource: "Animation", withExtension: "gif"),
+            if let gifURL = Bundle.main.url(forResource: "HomeRunCelebration", withExtension: "gif"),
                let gifData = try? Data(contentsOf: gifURL),
                let gifImage = UIImage.gif(data: gifData) {
                 imageView.image = gifImage
@@ -1565,7 +1602,6 @@ class OverlayVideoPlayerController: UIViewController {
             } else {
                 print("🚨 GIF not found in bundle!")
             }
-
 
             return imageView
         }
@@ -1745,7 +1781,6 @@ class OverlayVideoPlayerController: UIViewController {
             print("❌ Parabola fitting failed.")
         }
 
-/*
         parabolaLayer.path = path.cgPath
         parabolaLayer.strokeColor = UIColor.systemYellow.cgColor
         parabolaLayer.fillColor = UIColor.clear.cgColor
@@ -1755,10 +1790,9 @@ class OverlayVideoPlayerController: UIViewController {
         parabolaLayer.shadowColor = UIColor.yellow.cgColor
         parabolaLayer.shadowRadius = 8
         parabolaLayer.shadowOpacity = 0.8
-*/
     }
      
-    // ✅ Keep `private` only at the top level
+    // ✅ Keep private only at the top level
     private func updateBoundingBoxes(pitchPoints: [(CGPoint, Int)], hitPoints: [(CGPoint, Int)]) {
         // ✅ **Clear previous layers** before drawing new points
         boundingBoxLayers.forEach { $0.removeFromSuperlayer() }
@@ -1775,8 +1809,7 @@ class OverlayVideoPlayerController: UIViewController {
            let allSpeedCalcPoints = hitPoints.drop { $0.1 < firstSpeedCalc.1 }
         let speedCalculationPoints = allSpeedCalcPoints.prefix(3).filter { $0.0.x > firstSpeedCalc.0.x }
         
-        /*
-           // 🔴 Draw **First Speed Calc & Two Additional Points** in Red
+           // SPEED CALC POINTS
            for (point, _) in speedCalculationPoints {
                let redLayer = CALayer()
                redLayer.frame = CGRect(
@@ -1789,30 +1822,41 @@ class OverlayVideoPlayerController: UIViewController {
                redLayer.cornerRadius = 5
                view.layer.addSublayer(redLayer)
                boundingBoxLayers.append(redLayer)
-         
-         */
            }
         
-        // 🟡 Draw **hit tracking** points in yellow
-        /*
+        // PITCH POINTS
+             for (point, _) in pitchPoints {
+                 let pitchLayer = CALayer()
+                 pitchLayer.frame = CGRect(
+                     x: point.x * videoFrame.width - 5,
+                     y: (1 - point.y) * videoFrame.height - 5,
+                     width: 7,
+                     height: 7
+                 )
+                 pitchLayer.backgroundColor = UIColor.systemBlue.cgColor
+                 pitchLayer.cornerRadius = 5
+                 view.layer.addSublayer(pitchLayer)
+                 boundingBoxLayers.append(pitchLayer)
+             }
+        
+        // HIT POINTS
         for (point, _) in hitPoints {
             let hitLayer = CALayer()
             hitLayer.frame = CGRect(
-                x: point.x * videoFrame.width - 5,  // ✅ Add offset
-                y: (1 - point.y) * videoFrame.height - 5,  // ✅ Add offset
+                x: point.x * videoFrame.width - 5,
+                y: (1 - point.y) * videoFrame.height - 5,
                 width: 7,
                 height: 7
             )
-            hitLayer.backgroundColor = UIColor(named: "Baseball")?.withAlphaComponent(0.7)
+            hitLayer.backgroundColor = UIColor.systemYellow.cgColor
             hitLayer.cornerRadius = 5
             view.layer.addSublayer(hitLayer)
             boundingBoxLayers.append(hitLayer)
         }
-        */
+          
     }
+}
 
-
-        
 func fitParabola(to points: [CGPoint]) -> (a: CGFloat, b: CGFloat, c: CGFloat)? {
     guard points.count >= 3 else { return nil }
 
@@ -1966,5 +2010,3 @@ struct SummaryView_Previews: PreviewProvider {
         .previewInterfaceOrientation(.landscapeLeft)  // ✅ Rotates Preview in Xcode
     }
 }
-
-

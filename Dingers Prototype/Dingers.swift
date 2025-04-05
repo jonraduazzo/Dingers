@@ -7,7 +7,6 @@
 
 import SwiftUI
 
-@main
 struct Dingers_PrototypeApp: App {
     var body: some Scene {
         WindowGroup {
