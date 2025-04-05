@@ -989,7 +989,7 @@ class ModelHandler {
     var trackedPoints: [(CGPoint, Int)] = []
     var isPitchInProgress: Bool = false
     var pitchStartFrame: Int? = nil
-    let pitchTimeoutFrames: Int = 10
+    let pitchTimeoutFrames: Int = 60
     var allTrackedPoints: [(CGPoint, Int)] = []  // ✅ New: Stores **all** detected points
 
     func getSmashPoint() -> (CGPoint, Int)? {
@@ -1016,7 +1016,8 @@ class ModelHandler {
         if self.isPitchInProgress, let startFrame = self.pitchStartFrame {
             let elapsedFrames = frameCounter - startFrame
             if !self.smashPointDetected && elapsedFrames > self.pitchTimeoutFrames {
-                print("❌ No Hit Detected After Pitch (Frames: \(elapsedFrames))")
+                print("❌ Resetting (Frames: \(elapsedFrames))")
+                NotificationCenter.default.post(name: NSNotification.Name("ShowNoHitLabel"), object: nil)
                 self.isPitchInProgress = false
                 self.pitchStartFrame = nil
                 self.smashPointDetected = false
@@ -1092,7 +1093,7 @@ class ModelHandler {
 
                 // ✅ Optional Debug: Uncomment to print **all** detected points before the smash point
                     
-                    print("🟠 Pre-Smash Frame \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")
+                    print("🟠 Incoming Pitch \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")
                 
                 // ✅ Step 1: Identify the leftmost point before movement switches rightward
             if let previous = self.previousPosition {
@@ -1123,14 +1124,15 @@ class ModelHandler {
                             let furtherLeftCount = laterPoints.filter { $0.0.x < leftmost.0.x }.count
 
                             // ✅ If 3 or more points after the candidate are further left, it's **not** the inflection point
-                            if isMovingRight && furtherLeftCount < 3 {
+                        if isMovingRight && furtherLeftCount < 3 {
                                 self.smashPointDetected = true
+                                self.isPitchInProgress = false
                                 self.smashPoint = leftmost.0
                                 self.trackedPoints.append(leftmost)
                                 
                                 // ✅ Explicitly log the detected smash point
-                                                    print("🔥 Smash Point Detected! Frame \(leftmost.1) | Position: \(leftmost.0) | Box Size: \(boxSize)")
-                            }
+                                print("🔥 Smash Point Detected! Frame \(leftmost.1) | Position: \(leftmost.0) | Box Size: \(boxSize)")
+                        }
                         }
                     }
                             }
@@ -1195,7 +1197,7 @@ class OverlayVideoPlayerController: UIViewController {
     
     private let modelHandler = ModelHandler()
     private let conversionFactor: CGFloat = 6.0  // Feet per pixel
-    private let frameRate: CGFloat = 120.0  // Frames per second
+    private let frameRate: CGFloat = 240.0  // Frames per second
     private let mphConversionFactor: CGFloat = 0.681818  // 1 ft/s = 0.681818 mph
     private var frameCounter = 0
     
@@ -1207,6 +1209,7 @@ class OverlayVideoPlayerController: UIViewController {
     private var dingerLabel: UILabel! //  Declare dingerLabel
     private var dingerFrameCounter = 0 // Frame counter for "DINGER" display
     private var homeRunCounterLabel: UILabel!  // Declare home run counter label
+    private var noHitLabel: UILabel!
     
     private var homeRunCount = 0  // 🏆 Running tally of home runs
     
@@ -1225,6 +1228,8 @@ class OverlayVideoPlayerController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupStatsOverlay()
+        setupNoHitLabel()
+        NotificationCenter.default.addObserver(self, selector: #selector(showNoHitLabel), name: NSNotification.Name("ShowNoHitLabel"), object: nil)
         setupVideoPlayer()
         setupParabolaLayer()
         setupStopButton()  // ✅ Ensure button is added last so it appears on top
@@ -1793,6 +1798,37 @@ class OverlayVideoPlayerController: UIViewController {
     }
      
     // ✅ Keep private only at the top level
+    // New methods for no-hit label
+    private func setupNoHitLabel() {
+        noHitLabel = UILabel()
+        noHitLabel.text = "Better Luck Next Time!"
+        noHitLabel.textAlignment = .center
+        noHitLabel.textColor = .white
+        noHitLabel.font = UIFont(name: "Geared Slab", size: 36) ?? UIFont.systemFont(ofSize: 36, weight: .bold)
+        noHitLabel.backgroundColor = .clear
+        noHitLabel.layer.zPosition = 100
+        noHitLabel.isHidden = true
+        noHitLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(noHitLabel)
+
+        NSLayoutConstraint.activate([
+            noHitLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            noHitLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            noHitLabel.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.9)
+        ])
+    }
+    
+    @objc private func showNoHitLabel() {
+        DispatchQueue.main.async {
+            self.noHitLabel.isHidden = false
+            self.view.bringSubviewToFront(self.noHitLabel)
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                self.noHitLabel.isHidden = true
+            }
+        }
+    }
+    
     private func updateBoundingBoxes(pitchPoints: [(CGPoint, Int)], hitPoints: [(CGPoint, Int)]) {
         // ✅ **Clear previous layers** before drawing new points
         boundingBoxLayers.forEach { $0.removeFromSuperlayer() }
