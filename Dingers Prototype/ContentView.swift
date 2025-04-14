@@ -989,7 +989,7 @@ class ModelHandler {
     var trackedPoints: [(CGPoint, Int)] = []
     var isPitchInProgress: Bool = false
     var pitchStartFrame: Int? = nil
-    let pitchTimeoutFrames: Int = 60
+    let pitchTimeoutFrames: Int = 120
     var allTrackedPoints: [(CGPoint, Int)] = []  // ✅ New: Stores **all** detected points
 
     func getSmashPoint() -> (CGPoint, Int)? {
@@ -1090,22 +1090,22 @@ class ModelHandler {
                 let boxSize = box.width * box.height  // Compute bounding box size
 
                 self.allTrackedPoints.append((currentPosition, frameCounter))
-
-                // ✅ Optional Debug: Uncomment to print **all** detected points before the smash point
                     
-                    print("🟠 Incoming Pitch \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")
+                if !self.smashPointDetected {
+                    print("⚾ Pitch Detection \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")
+                }
                 
                 // ✅ Step 1: Identify the leftmost point before movement switches rightward
             if let previous = self.previousPosition {
                 let deltaX = currentPosition.x - previous.x
                 let isMovingRight = deltaX > 0
                 
-                // 🟠 Pitch detection logic
-                if deltaX < 0 {
+                // ⚾ Pitch detection logic
+                if deltaX < 0 && !self.smashPointDetected {
                     if !self.isPitchInProgress {
                         self.isPitchInProgress = true
                         self.pitchStartFrame = frameCounter
-                        print("⚾ Pitch Detected: Frame \(frameCounter)")
+                        print("⚾ Pitch Confirmed: Frame \(frameCounter)")
                     }
                 }
                 
@@ -1131,7 +1131,7 @@ class ModelHandler {
                                 self.trackedPoints.append(leftmost)
                                 
                                 // ✅ Explicitly log the detected smash point
-                                print("🔥 Smash Point Detected! Frame \(leftmost.1) | Position: \(leftmost.0) | Box Size: \(boxSize)")
+                                print("💥 Smash Point Detected! Frame \(leftmost.1) | Position: \(leftmost.0) | Box Size: \(boxSize)")
                         }
                         }
                     }
@@ -1142,7 +1142,7 @@ class ModelHandler {
                     if let lastTracked = self.trackedPoints.last, lastTracked.0 == currentPosition {
                            return  // 🚨 Skip duplicate frames (same location as last)
                        }
-                    print("🟢 Frame \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")
+                    print("💣 Hit Tracking \(frameCounter) | Position: \(currentPosition) | Box Size: \(boxSize)")
                     self.trackedPoints.append((currentPosition, frameCounter))
                 }
 
@@ -1197,7 +1197,7 @@ class OverlayVideoPlayerController: UIViewController {
     
     private let modelHandler = ModelHandler()
     private let conversionFactor: CGFloat = 6.0  // Feet per pixel
-    private let frameRate: CGFloat = 240.0  // Frames per second
+    private let frameRate: CGFloat = 120.0  // Frames per second
     private let mphConversionFactor: CGFloat = 0.681818  // 1 ft/s = 0.681818 mph
     private var frameCounter = 0
     
@@ -1214,7 +1214,7 @@ class OverlayVideoPlayerController: UIViewController {
     private var homeRunCount = 0  // 🏆 Running tally of home runs
     
     private var lastDetectionFrame: Int? = nil
-    private let detectionTimeoutFrames = 60  // Adjust as needed (60 = 1 second at 60 FPS)
+    private let detectionTimeoutFrames = 120  // Adjust as needed (60 = 1 second at 60 FPS)
     
     init(videoURL: URL) {
         self.videoURL = videoURL
@@ -1483,7 +1483,7 @@ class OverlayVideoPlayerController: UIViewController {
         playerViewController.view.frame = view.bounds
         playerViewController.didMove(toParent: self)
         
-        player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 60), queue: .main) { time in
+        player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 120), queue: .main) { time in
             self.frameCounter += 1
             guard let pixelBuffer = self.videoOutput.copyPixelBuffer(forItemTime: time, itemTimeForDisplay: nil) else { return }
             
